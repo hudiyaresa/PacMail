@@ -18,7 +18,7 @@ jobs:
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL_STAGING }} 
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }} 
       
         with:
             host: ${{ secrets.SSH_HOST_STAGING }}
@@ -42,16 +42,16 @@ jobs:
               echo "POSTGRES_USER=$POSTGRES_USER" > .env 
               echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env 
               echo "POSTGRES_DB=$POSTGRES_DB" >> .env && cp .env backend/.env
-              echo "REACT_APP_API_URL=${{ secrets.REACT_APP_API_URL_STAGING }}" > frontend/.env
+              echo "REACT_APP_API_URL=$REACT_APP_API_URL" > frontend/.env
 
               # Run app
-              sudo docker compose up my-database my-backend my-frontend --build --detach
+              sudo docker compose up database-pacmail backend-pacmail frontend-pacmail --build --detach
       
       - name: Hit Endpoint
         run: |
-          sleep 15
-          curl ${{ secrets.STAGING_URL }}
+          sleep 10
+          curl ${{ secrets.STG_URL }}
 
-      - name: Clear Docker Image Cache
-        run: |
-          sudo docker image prune -f
+      # - name: Clear Docker Image Cache
+      #   run: |
+      #     sudo docker image prune -f
