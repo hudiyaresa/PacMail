@@ -1,0 +1,30 @@
+name: Push to Container Registry 🛒
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  push-to-dockerhub:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Login to DockerHub
+        run: echo "${{ secrets.DOCKERHUB_TOKEN }}" | docker login -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Push current & latest flaskapp
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app
+          file: ./app/Dockerfile
+          push: true
+          tags: | 
+            ${{ secrets.DOCKERHUB_USERNAME }}/pacmain:${{ github.ref_name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/pacmail:latest
