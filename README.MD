@@ -57,44 +57,53 @@ Configure `docker-compose.yml` for all services (frontend, backend, and database
 
 ```yaml
 version: '3'
+
 services:
-  frontend:
+  frontend-pacmail:
     image: node:latest
     container_name: frontend-container
     working_dir: /frontend
+    restart: always
+    depends_on:
+      - backend-pacmail
+      - database-pacmail
     volumes:
       - ./frontend:/frontend
-    depends_on:
-      - backend
-      - database
-    restart: always
-    network_mode: "host"
     command: npm start
+    network_mode: "host"
+    environment:
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
   
-  backend:
+  backend-pacmail:
     build:
       context: ./backend
     container_name: backend-container
-    hostname: backend
+    hostname: backend-pacmail
     volumes:
       - ./backend:/app
     depends_on:
-      - database
+      - database-pacmail
     restart: always
     network_mode: "host"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
   
-  database:
+  database-pacmail:
     image: postgres:13
     container_name: database-container
-    hostname: database
+    hostname: database-pacmail
+    restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: always
     network_mode: "host"
+    ports:
+      - 5432:5432
 
 volumes:
   postgres_data:
@@ -109,77 +118,110 @@ volumes:
 #### Continuous Integration Workflow
 Create a GitHub Actions workflow file (`.github/workflows/ci.yml`) for the CI process:
 ```yaml
-name: CI Workflow
+name: Dev Testing 🔎 
+
 on:
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
 
 jobs:
-  build:
+  build-testing:
+    name: Build and Testing
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout repository
         uses: actions/checkout@v2
-
-      - name: Set up Python
-        uses: actions/setup-python@v2
-        with:
-          python-version: '3.10'
-
-      - name: Install Backend Requirements
+      
+      - name: Create .env file
         run: |
-          cd backend
-          pip install -r requirements.txt
+          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > .env
+          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
+          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
+          echo "REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}" >> .env 
 
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
+      - name: Build and Run Container
+        run: |
+          sudo docker compose up database-pacmail backend-pacmail frontend-pacmail --build --detach
 
-      - name: Install Testing Requirements
+      - name: Hit Endpoint
+        run: |
+          sleep 10
+          curl ${{ secrets.PROD_URL_1 }}
+          curl ${{ secrets.PROD_URL_2 }}
+          
+      - name: Testing
         run: |
           pip install -r testing/requirements.txt
-
-      - name: Run Tests
-        run: |
           python3 testing/test_signup.py
 ```
 
 #### Continuous Delivery & Deployment Workflow
 Create a GitHub Actions workflow file (`.github/workflows/cd.yml`) for the CD process:
 ```yaml
-name: CD Workflow
+name: Deploy Production 🚀
+
 on:
-  push:
-    branches:
-      - main
+  release:
+    types:
+      - published
+      - edited
 
 jobs:
-  delivery:
+  deploy-production:
+    name: Deploy to production server 🚀
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v2
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
+    steps:
+      - name: Execute deployment command
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          APP_PATH_PROD: ${{ secrets.APP_PATH_PROD }}
+          GIT_URL: ${{ secrets.GIT_URL }}
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+          APP_NAME: ${{ vars.APP_NAME }}
+          APP_TAG: ${{ github.event.release.tag_name }}
+
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          host: ${{ secrets.SSH_HOST_PROD }}
+          username: ${{ secrets.SSH_USER_NAME_PROD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+          envs: APP_PATH_PROD, GIT_URL, REACT_APP_API_URL, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_HOST, DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, APP_NAME, APP_TAG
+          script: |
 
-      - name: Build and Push Docker Images
-        run: |
-          docker-compose build
-          docker-compose push
+            sudo docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_TOKEN
 
-  deployment:
-    runs-on: self-hosted
-    steps:
-      - name: SSH into Server and Deploy
+            if [[ -d "${APP_PATH_PROD}" ]]; then 
+              cd $APP_PATH_PROD
+              sudo docker compose down
+              git pull --rebase
+            else
+              ssh-keyscan github.com > ~/.ssh/known_hosts
+              git clone $GIT_URL $APP_PATH_PROD
+              cd $APP_PATH_PROD
+            fi
+
+            # If there are any envars update
+            echo "POSTGRES_USER=$POSTGRES_USER" > .env
+            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
+            echo "POSTGRES_DB=$POSTGRES_DB" >> .env
+            echo "POSTGRES_HOST=$POSTGRES_HOST" >> .env
+            echo "POSTGRES_PORT=$POSTGRES_PORT" >> .env
+            echo "APP_IMAGE=${DOCKERHUB_USERNAME}/${APP_NAME}" >> .env
+            echo "APP_TAG=$APP_TAG" >> .env
+
+            # Run app
+            sudo docker compose up database-pacmail backend-pacmail frontend-pacmail --build --detach
+
+      - name: Hit Endpoint
         run: |
-          ssh -o StrictHostKeyChecking=no user@server 'docker-compose pull && docker-compose up -d'
+          sleep 10
+          curl ${{ vars.PROD_URL_1 }}
 ```
 
 ### 4. Domain and Nginx Configuration
@@ -191,7 +233,7 @@ jobs:
      ```nginx
      server {
          listen 80;
-         server_name your-domain.com;
+         server_name pacmail.groups.id;
 
          location / {
              proxy_pass http://localhost:3000;
@@ -205,4 +247,3 @@ jobs:
 
 ## Conclusion
 Following these steps will set up automated deployment for PacMail, ensuring smooth updates and public availability. For any additional configurations, refer to the specific documentation for Docker, Nginx, and GitHub Actions.
-```

@@ -27,15 +27,15 @@ jobs:
             envs: APP_PATH_STAGING, GIT_URL, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, REACT_APP_API_URL
             script: |
 
-              if [[ -d "/home/ubuntu/${APP_PATH_STAGING}" ]]; then 
-                cd /home/ubuntu/$APP_PATH_STAGING
+              if [[ -d "${APP_PATH_STAGING}" ]]; then 
+                cd $APP_PATH_STAGING
                 sudo docker compose down
                 git stash
                 git pull --rebase
               else
                 ssh-keyscan github.com > ~/.ssh/known_hosts
-                git clone $GIT_URL /home/ubuntu/$APP_PATH_STAGING
-                cd /home/ubuntu/$APP_PATH_STAGING
+                git clone $GIT_URL $APP_PATH_STAGING
+                cd $APP_PATH_STAGING
               fi
 
               # If there are any envars update
@@ -49,7 +49,7 @@ jobs:
       
       - name: Hit Endpoint
         run: |
-          sleep 10
+          sleep 15
           curl ${{ secrets.STG_URL }}
 
       # - name: Clear Docker Image Cache

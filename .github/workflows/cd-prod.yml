@@ -36,14 +36,14 @@ jobs:
 
             sudo docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_TOKEN
 
-            if [[ -d "/home/ubuntu/${APP_PATH_PROD}" ]]; then 
-              cd /home/ubuntu/$APP_PATH_PROD
+            if [[ -d "${APP_PATH_PROD}" ]]; then 
+              cd $APP_PATH_PROD
               sudo docker compose down
               git pull --rebase
             else
               ssh-keyscan github.com > ~/.ssh/known_hosts
-              git clone $GIT_URL /home/ubuntu/$APP_PATH_PROD
-              cd /home/ubuntu/$APP_PATH_PROD
+              git clone $GIT_URL $APP_PATH_PROD
+              cd $APP_PATH_PROD
             fi
 
             # If there are any envars update
@@ -60,5 +60,5 @@ jobs:
 
       - name: Hit Endpoint
         run: |
-          sleep 10
+          sleep 15
           curl ${{ vars.PROD_URL_1 }}
