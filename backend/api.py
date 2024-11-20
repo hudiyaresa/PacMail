@@ -16,7 +16,7 @@ app = Flask(__name__)
 CORS(app) 
 bcrypt = Bcrypt(app)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@localhost:5432/{POSTGRES_DB}'
+app.config['SQLALCHEMY_DATABASE_URI'] = f'postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@host.docker.internal:5432/{POSTGRES_DB}'
 db = SQLAlchemy(app)
 
 
