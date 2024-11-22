@@ -14,7 +14,7 @@ services:
     command: npm start
     network_mode: "host"
     environment:
-      - REACT_APP_API_URL=${REACT_APP_API_URL}
+      - REACT_APP_API_URL=https://pacmail.groups.id/api
   
   backend-pacmail:
     build:
@@ -51,4 +51,3 @@ services:
 
 volumes:
   postgres_data:
-  
