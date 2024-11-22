@@ -14,7 +14,7 @@ services:
     command: npm start
     network_mode: "host"
     environment:
-      - REACT_APP_API_URL=https://pacmail.groups.id/api
+      - REACT_APP_API_URL=${REACT_APP_API_URL}
   
   backend-pacmail:
     build:
