@@ -38,14 +38,8 @@ jobs:
                 cd $APP_PATH_STAGING
               fi
 
-              # If there are any envars update
-              echo "POSTGRES_USER=$POSTGRES_USER" > .env 
-              echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env 
-              echo "POSTGRES_DB=$POSTGRES_DB" >> .env && cp .env backend/.env
-              echo "REACT_APP_API_URL=$REACT_APP_API_URL" > frontend/.env
-
               # Run app
-              sudo docker compose up database-pacmail backend-pacmail frontend-pacmail --env-file ./frontend/.env --env-file ./backend/.env --build --detach
+              sudo docker compose up database-pacmail backend-pacmail frontend-pacmail --build --detach
       
       - name: Hit Endpoint
         run: |
