@@ -19,11 +19,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       
-      - name: Push current & latest flaskapp
+      - name: Push current & latest backend-container
         uses: docker/build-push-action@v5
         with:
-          context: ./app
-          file: ./app/Dockerfile
+          context: ./backend
+          file: ./backend/Dockerfile
           push: true
           tags: | 
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.APP_NAME }}:${{ github.ref_name }}
