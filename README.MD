@@ -17,15 +17,26 @@ This repository contains the configuration and scripts needed to deploy the PacM
     - [Continuous Delivery & Deployment Workflow](#continuous-delivery--deployment-workflow)
   - [4. Domain and Nginx Configuration](#4-domain-and-nginx-configuration)
 - [Conclusion](#conclusion)
+- [References](#references)
 
 ---
 
 ## Overview
-PacMail is a web-based email application with features for user login, sign-up, inbox view, and email sending. This repository automates the deployment process using Docker, Docker Compose, and GitHub Actions CI/CD pipeline.
+### Overview
+
+PacMail is a web-based email application providing essential features such as user login, sign-up, inbox management, and email sending. However, the deployment process previously faced key challenges, including the lack of automation, potential downtime during updates disrupting user experience, and limited public accessibility via a dedicated domain.
+
+To address these issues, this repository implements a comprehensive solution using Docker, Docker Compose, and a robust GitHub Actions CI/CD pipeline. The implementation ensures seamless updates, uninterrupted service, and public availability of PacMail. The deployment process is streamlined into four key steps:
+
+1. **Server Preparation:** Setting up a cloud-hosted server to host the application.  
+2. **Application Composition:** Packaging the application into containers using Docker Compose.  
+3. **CI/CD Pipeline:** Automating deployment with GitHub Actions and self-hosted runners.  
+4. **Domain & Reverse Proxy Configuration:** Configuring Nginx, Certbot, and DNS to ensure secure public accessibility.  
+
 
 ## Prerequisites
 - **Server**: A public-accessible server (e.g., VPS) for hosting the application.
-- **Domain**: A domain name for public access.
+- **Domain**: A domain name for public access (freeDNS).
 - **Software**:
   - Docker & Docker Compose
   - Nginx
@@ -56,7 +67,7 @@ CMD ["python3", "api.py"]
 Configure `docker-compose.yml` for all services (frontend, backend, and database).
 
 ```yaml
-version: '3'
+version: "3.8"
 
 services:
   frontend-pacmail:
@@ -71,8 +82,8 @@ services:
       - ./frontend:/frontend
     command: npm start
     network_mode: "host"
-    environment:
-      - REACT_APP_API_URL=${REACT_APP_API_URL}
+    env_file: 
+      - ./frontend/.env
   
   backend-pacmail:
     build:
@@ -85,10 +96,8 @@ services:
       - database-pacmail
     restart: always
     network_mode: "host"
-    environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+    env_file: 
+      - ./backend/.env
   
   database-pacmail:
     image: postgres:13
@@ -107,6 +116,7 @@ services:
 
 volumes:
   postgres_data:
+
 ```
 
 ### 3. CI/CD Pipeline Configuration
@@ -114,136 +124,88 @@ volumes:
 #### Branch Protection
 1. Protect the main branch in the repository settings.
 2. Only allow merges through approved pull requests.
+![main branch protection](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/branch%20protection%20role.png)
 
 #### Continuous Integration Workflow
-Create a GitHub Actions workflow file (`.github/workflows/ci.yml`) for the CI process:
-```yaml
-name: Dev Testing 🔎 
-
-on:
-  pull_request:
-    branches: [ "main" ]
-
-jobs:
-  build-testing:
-    name: Build and Testing
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-      
-      - name: Create .env file
-        run: |
-          echo "POSTGRES_USER=${{ secrets.POSTGRES_USER }}" > .env
-          echo "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" >> .env
-          echo "POSTGRES_DB=${{ secrets.POSTGRES_DB }}" >> .env
-          echo "REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}" >> .env 
-
-      - name: Build and Run Container
-        run: |
-          sudo docker compose up database-pacmail backend-pacmail frontend-pacmail --build --detach
-
-      - name: Hit Endpoint
-        run: |
-          sleep 10
-          curl ${{ secrets.PROD_URL_1 }}
-          curl ${{ secrets.PROD_URL_2 }}
-          
-      - name: Testing
-        run: |
-          pip install -r testing/requirements.txt
-          python3 testing/test_signup.py
-```
+Create a GitHub Actions workflow file ([`.github/workflows/ci.yml`](https://github.com/hudiyaresa/PacMail/blob/70b12cb7b1c99e948d4179cedc81343f7c5e5f17/.github/workflows/ci.yml)) for the CI process. A CI process will be triggered for any pull requests targeting the main branch. This process includes automated testing to validate application functionality:
+![CI Process](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/01.%20pacmail%20build%20and%20test.png)
 
 #### Continuous Delivery & Deployment Workflow
-Create a GitHub Actions workflow file (`.github/workflows/cd.yml`) for the CD process:
-```yaml
-name: Deploy Production 🚀
+##### Staging
+Create a GitHub Actions workflow file ([`.github/workflows/cd-staging.yml`](https://github.com/hudiyaresa/PacMail/blob/70b12cb7b1c99e948d4179cedc81343f7c5e5f17/.github/workflows/cd-staging.yml)) for the CD process. This process will be triggered by pushes or updates to the main branch, leading to application deployment to the staging server. This enables the QA team to test the application before production deployment:
+![CD Process Staging](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/02.%20deploy%20staging.png)
 
-on:
-  release:
-    types:
-      - published
-      - edited
+##### Push to Registry
+Create a GitHub Actions workflow file ([`.github/workflows/cd-push-registry.yml`](https://github.com/hudiyaresa/PacMail/blob/70b12cb7b1c99e948d4179cedc81343f7c5e5f17/.github/workflows/cd-push-registry.yml)) for the CD process. Once testing on the staging server is complete and the application is deemed ready for release, the Docker image used will be saved to Docker Hub. This process is triggered by a new tag on the main branch:
+![CD Process Push Registry](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/03.%20push%20to%20registry.png)
 
-jobs:
-  deploy-production:
-    name: Deploy to production server 🚀
-    runs-on: ubuntu-latest
+##### Deploy to Production
+Create a GitHub Actions workflow file ([`.github/workflows/cd-prod.yml`](https://github.com/hudiyaresa/PacMail/blob/70b12cb7b1c99e948d4179cedc81343f7c5e5f17/.github/workflows/cd-prod.yml)) for the CD process. A new tag release will initiate the deployment process, making the application available to end-users on the production server:
+![CD Process Production](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/04.%20deploy%20production.png)
 
-    steps:
-      - name: Execute deployment command
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          APP_PATH_PROD: ${{ secrets.APP_PATH_PROD }}
-          GIT_URL: ${{ secrets.GIT_URL }}
-          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-          APP_NAME: ${{ vars.APP_NAME }}
-          APP_TAG: ${{ github.event.release.tag_name }}
-
-        with:
-          host: ${{ secrets.SSH_HOST_PROD }}
-          username: ${{ secrets.SSH_USER_NAME_PROD }}
-          key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
-          envs: APP_PATH_PROD, GIT_URL, REACT_APP_API_URL, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB, POSTGRES_HOST, DOCKERHUB_USERNAME, DOCKERHUB_TOKEN, APP_NAME, APP_TAG
-          script: |
-
-            sudo docker login -u $DOCKERHUB_USERNAME -p $DOCKERHUB_TOKEN
-
-            if [[ -d "${APP_PATH_PROD}" ]]; then 
-              cd $APP_PATH_PROD
-              sudo docker compose down
-              git pull --rebase
-            else
-              ssh-keyscan github.com > ~/.ssh/known_hosts
-              git clone $GIT_URL $APP_PATH_PROD
-              cd $APP_PATH_PROD
-            fi
-
-            # If there are any envars update
-            echo "POSTGRES_USER=$POSTGRES_USER" > .env
-            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
-            echo "POSTGRES_DB=$POSTGRES_DB" >> .env
-            echo "POSTGRES_HOST=$POSTGRES_HOST" >> .env
-            echo "POSTGRES_PORT=$POSTGRES_PORT" >> .env
-            echo "APP_IMAGE=${DOCKERHUB_USERNAME}/${APP_NAME}" >> .env
-            echo "APP_TAG=$APP_TAG" >> .env
-
-            # Run app
-            sudo docker compose up database-pacmail backend-pacmail frontend-pacmail --build --detach
-
-      - name: Hit Endpoint
-        run: |
-          sleep 10
-          curl ${{ vars.PROD_URL_1 }}
-```
 
 ### 4. Domain and Nginx Configuration
 
 1. **Set Up Domain**: Register a domain name for accessing the application.
 2. **Nginx Reverse Proxy Configuration**:
    - Create an Nginx configuration to redirect traffic from port 80 to the frontend container on localhost:3000.
-   - Example `nginx.conf`:
-     ```nginx
-     server {
-         listen 80;
-         server_name pacmail.groups.id;
 
-         location / {
-             proxy_pass http://localhost:3000;
-             proxy_set_header Host $host;
-             proxy_set_header X-Real-IP $remote_addr;
-             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-             proxy_set_header X-Forwarded-Proto $scheme;
-         }
-     }
+     ```
+     cd /etc/nginx/sites-available
+     sudo nano pacmail.groups.id
      ```
 
-## Conclusion
-Following these steps will set up automated deployment for PacMail, ensuring smooth updates and public availability. For any additional configurations, refer to the specific documentation for Docker, Nginx, and GitHub Actions.
+     ```nginx
+    server {
+        listen 80;
+        server_name pacmail.groups.id;
+
+        location / {
+            proxy_pass http://public-ip:3000;
+        }
+
+        location /api {
+            proxy_pass http://public-ip:5000;
+        }
+    }
+     ```
+
+     - creating a symlink to the sites-enabled directory
+        ```
+        sudo ln -s /etc/nginx/sites-available/pacmail.groups.id /etc/nginx/sites-enabled
+        ```
+
+     - check the syntax and test to ensure there are no incorrect configurations
+        ```
+        sudo nginx -t
+        ```
+
+### 5. Create Domain Name and Install SSL Certificate
+
+To optimize user experience and security, we'll implement a domain name and SSL certificate. This will allow users to access the application via a user-friendly URL and a secure HTTPS connection. To simplify the SSL certificate process, we will utilize Certbot, a powerful automation tool
+
+```sudo apt install certbot python3-certbot-nginx```
+
+With our Nginx configuration, we'll automate the SSL certificate process with Certbot
+
+```sudo certbot --nginx -d "pacmail.groups.id"```
+
+With the SSL certificate generated and installed, the application is now securely accessible via HTTPS. You can access it at [https://pacmail.groups.id](https://pacmail.groups.id)
+
+
+![Pacmail HTTPS](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/pacmail%20landingpage.png)
+![Pacmail Test](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/pacmail%20test.png)
+
+
+### Conclusion
+
+By implementing a robust CI/CD pipeline, PacMail achieves several key benefits: increased deployment frequency, improved code quality, reduced deployment time, enhanced application reliability, and greater scalability. This approach ensures that PacMail can deliver a reliable, scalable, and accessible email solution to meet the evolving needs of the company and its users.
+
+Following the outlined steps simplifies automated deployment for PacMail, ensuring smooth updates and public availability. For any additional configurations, refer to the specific documentation for Docker, Nginx, and GitHub Actions.
+
+
+### References
+- [Docker Documentation](https://docs.docker.com)
+- [Nginx Reverse Proxy Setup](https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [Benefits of CI/CD](https://www.redhat.com/en/topics/devops/what-is-ci-cd)
