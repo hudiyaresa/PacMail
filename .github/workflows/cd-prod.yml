@@ -62,3 +62,4 @@ jobs:
         run: |
           sleep 15
           curl ${{ vars.PROD_URL_1 }}
+          

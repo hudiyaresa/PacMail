@@ -28,3 +28,4 @@ jobs:
           tags: | 
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.APP_NAME }}:${{ github.ref_name }}
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ vars.APP_NAME }}:latest
+            
