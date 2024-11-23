@@ -22,7 +22,10 @@ This repository contains the configuration and scripts needed to deploy the PacM
 ---
 
 ## Overview
-### Overview
+
+
+![Pacmail Development and Deployment](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/Software%20Development%20and%20Deployment%20Process.png)
+
 
 PacMail is a web-based email application providing essential features such as user login, sign-up, inbox management, and email sending. However, the deployment process previously faced key challenges, including the lack of automation, potential downtime during updates disrupting user experience, and limited public accessibility via a dedicated domain.
 
@@ -124,77 +127,113 @@ volumes:
 #### Branch Protection
 1. Protect the main branch in the repository settings.
 2. Only allow merges through approved pull requests.
+
 ![main branch protection](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/branch%20protection%20role.png)
+
+
 
 #### Continuous Integration Workflow
 Create a GitHub Actions workflow file ([`.github/workflows/ci.yml`](https://github.com/hudiyaresa/PacMail/blob/70b12cb7b1c99e948d4179cedc81343f7c5e5f17/.github/workflows/ci.yml)) for the CI process. A CI process will be triggered for any pull requests targeting the main branch. This process includes automated testing to validate application functionality:
+
 ![CI Process](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/01.%20pacmail%20build%20and%20test.png)
+
+
 
 #### Continuous Delivery & Deployment Workflow
 ##### Staging
 Create a GitHub Actions workflow file ([`.github/workflows/cd-staging.yml`](https://github.com/hudiyaresa/PacMail/blob/70b12cb7b1c99e948d4179cedc81343f7c5e5f17/.github/workflows/cd-staging.yml)) for the CD process. This process will be triggered by pushes or updates to the main branch, leading to application deployment to the staging server. This enables the QA team to test the application before production deployment:
+
 ![CD Process Staging](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/02.%20deploy%20staging.png)
+
+
 
 ##### Push to Registry
 Create a GitHub Actions workflow file ([`.github/workflows/cd-push-registry.yml`](https://github.com/hudiyaresa/PacMail/blob/70b12cb7b1c99e948d4179cedc81343f7c5e5f17/.github/workflows/cd-push-registry.yml)) for the CD process. Once testing on the staging server is complete and the application is deemed ready for release, the Docker image used will be saved to Docker Hub. This process is triggered by a new tag on the main branch:
+
 ![CD Process Push Registry](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/03.%20push%20to%20registry.png)
+
+
 
 ##### Deploy to Production
 Create a GitHub Actions workflow file ([`.github/workflows/cd-prod.yml`](https://github.com/hudiyaresa/PacMail/blob/70b12cb7b1c99e948d4179cedc81343f7c5e5f17/.github/workflows/cd-prod.yml)) for the CD process. A new tag release will initiate the deployment process, making the application available to end-users on the production server:
+
 ![CD Process Production](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/04.%20deploy%20production.png)
+
 
 
 ### 4. Domain and Nginx Configuration
 
-1. **Set Up Domain**: Register a domain name for accessing the application.
-2. **Nginx Reverse Proxy Configuration**:
-   - Create an Nginx configuration to redirect traffic from port 80 to the frontend container on localhost:3000.
+#### **Step 1: Set Up the Domain**  
+Register a domain name to allow users to access the application conveniently.  
 
-     ```
-     cd /etc/nginx/sites-available
-     sudo nano pacmail.groups.id
-     ```
+#### **Step 2: Configure Nginx Reverse Proxy**  
+Set up Nginx to route traffic from the domain to the appropriate application services.
 
-     ```nginx
-    server {
-        listen 80;
-        server_name pacmail.groups.id;
+1. Create a new Nginx configuration file for your domain:  
+   ```bash
+   cd /etc/nginx/sites-available
+   sudo nano pacmail.groups.id
+   ```
 
-        location / {
-            proxy_pass http://public-ip:3000;
-        }
+2. Add the following configuration to redirect traffic:  
+   ```nginx
+   server {
+       listen 80;
+       server_name pacmail.groups.id;
 
-        location /api {
-            proxy_pass http://public-ip:5000;
-        }
-    }
-     ```
+       location / {
+           proxy_pass http://public-ip:3000;
+       }
 
-     - creating a symlink to the sites-enabled directory
-        ```
-        sudo ln -s /etc/nginx/sites-available/pacmail.groups.id /etc/nginx/sites-enabled
-        ```
+       location /api {
+           proxy_pass http://public-ip:5000;
+       }
+   }
+   ```
 
-     - check the syntax and test to ensure there are no incorrect configurations
-        ```
-        sudo nginx -t
-        ```
+3. Create a symlink to the `sites-enabled` directory to activate the configuration:  
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/pacmail.groups.id /etc/nginx/sites-enabled
+   ```
+
+4. Test the configuration to ensure there are no syntax errors:  
+   ```bash
+   sudo nginx -t
+   ```
+
+5. Reload Nginx to apply the changes:  
+   ```bash
+   sudo systemctl reload nginx
+   ```
+
+---
 
 ### 5. Create Domain Name and Install SSL Certificate
 
-To optimize user experience and security, we'll implement a domain name and SSL certificate. This will allow users to access the application via a user-friendly URL and a secure HTTPS connection. To simplify the SSL certificate process, we will utilize Certbot, a powerful automation tool
+#### **Step 1: Register and Secure Your Domain**  
+Optimize the user experience and enhance security by registering a domain name and installing an SSL certificate. This enables users to access the application via a secure and user-friendly URL.
 
-```sudo apt install certbot python3-certbot-nginx```
+#### **Step 2: Install Certbot for SSL Configuration**  
+Install Certbot, an automated tool for generating and managing SSL certificates:  
+```bash
+sudo apt install certbot python3-certbot-nginx
+```
 
-With our Nginx configuration, we'll automate the SSL certificate process with Certbot
+#### **Step 3: Automate SSL Certificate Installation**  
+Run Certbot to configure SSL for your domain:  
+```bash
+sudo certbot --nginx -d pacmail.groups.id
+```
 
-```sudo certbot --nginx -d "pacmail.groups.id"```
-
-With the SSL certificate generated and installed, the application is now securely accessible via HTTPS. You can access it at [https://pacmail.groups.id](https://pacmail.groups.id)
+#### **Step 4: Verify SSL Configuration**  
+Once the SSL certificate is installed, the application will be securely accessible via HTTPS:  
+- **Access the application at:** [https://pacmail.groups.id](https://pacmail.groups.id)
 
 
 ![Pacmail HTTPS](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/pacmail%20landingpage.png)
+
 ![Pacmail Test](https://github.com/hudiyaresa/PacMail/blob/main/demo_screenshots/pacmail%20test.png)
+
 
 
 ### Conclusion
