@@ -37,6 +37,7 @@ jobs:
 
             if [[ -d "${APP_PATH_PROD}" ]]; then 
               cd $APP_PATH_PROD
+              sudo docker rm -f database-container backend-container frontend-container || true
               sudo docker compose down
               git pull --rebase
             else
